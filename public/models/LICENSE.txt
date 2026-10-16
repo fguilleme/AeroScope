@@ -1,0 +1,17 @@
+Regional jet aircraft — Innerscene original model.
+Source: https://www.innerscene.com/tools/library/3d-parts/regional-jet-aircraft-ae1f8f3d
+License: CC0 1.0 Universal (public domain dedication).
+Downloaded 2026-10-16 for use in AeroScope.
+
+Additional type-specific models:
+- A320, A350, A380, B737, B787, drone and eVTOL: amvlab/aircraft-models,
+  CC BY 4.0, https://github.com/amvlab/aircraft-models
+- B747, B777, E190, CRJ900, ATR42 and Q400: Flightradar24 / FlightGear,
+  GPL v2, https://github.com/Flightradar24/fr24-3d-models
+- Textured A330/A340, Citation, Piper PA-28, helicopter and ASK 21 variants:
+  Flightradar24 / FlightGear, GPL v2.
+- Generic widebody, business jet, light propeller aircraft, helicopter, fighter
+  and glider: FlightAirMap, GPL v2,
+  https://github.com/Ysurac/FlightAirMap-3dmodels
+
+Full license texts are stored in public/models/aircraft/.

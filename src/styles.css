@@ -1,0 +1,368 @@
+:root {
+  font-family: 'Manrope', system-ui, sans-serif;
+  color: #eaf0f2;
+  background: #071018;
+  font-synthesis: none;
+  --bg: #071018;
+  --panel: #0c1720;
+  --panel-2: #101e28;
+  --line: rgba(160, 185, 199, .14);
+  --muted: #81909b;
+  --lime: #caff55;
+  --lime-soft: rgba(202, 255, 85, .12);
+  --cyan: #71c4ed;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 65% -10%, #132733 0, transparent 35%), var(--bg); }
+button, input, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { color: inherit; }
+
+.app-shell { min-height: 100vh; }
+.topbar { height: 68px; display: flex; align-items: center; gap: 48px; border-bottom: 1px solid var(--line); padding: 0 clamp(20px, 3vw, 52px); background: rgba(7,16,24,.92); backdrop-filter: blur(18px); position: sticky; top: 0; z-index: 100; }
+.brand { display: flex; align-items: center; gap: 11px; color: #f4f7f8; text-decoration: none; letter-spacing: .12em; font-size: 14px; }
+.brand strong { color: var(--lime); font-weight: 700; }
+.logo-mark { width: 28px; height: 25px; position: relative; display: inline-block; }
+.logo-mark span { position: absolute; background: var(--lime); height: 2px; width: 23px; transform-origin: left center; left: 2px; border-radius: 8px; }
+.logo-mark span:first-child { transform: rotate(-32deg); top: 18px; }
+.logo-mark span:nth-child(2) { transform: rotate(32deg); top: 6px; }
+.logo-mark i { position: absolute; width: 5px; height: 5px; border: 1.5px solid var(--lime); border-radius: 50%; left: 0; top: 10px; box-shadow: 14px -8px 0 -1px #071018, 14px -8px 0 0 var(--lime), 14px 8px 0 -1px #071018, 14px 8px 0 0 var(--lime); }
+.header-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.live-state { display: flex; align-items: center; gap: 8px; font: 500 10px 'DM Mono'; letter-spacing: .08em; color: var(--lime); border: 1px solid rgba(202,255,85,.2); border-radius: 20px; padding: 7px 11px; background: var(--lime-soft); }
+.live-state i, .source-live i { width: 5px; height: 5px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 9px var(--lime); animation: pulse 1.6s infinite; }
+.live-state.offline { color: #f4be6b; background: rgba(244,190,107,.08); border-color: rgba(244,190,107,.2); }
+.live-state.offline i { background: #f4be6b; box-shadow: 0 0 9px #f4be6b; }
+.icon-btn { width: 34px; height: 34px; border: 1px solid var(--line); background: #0d1820; border-radius: 7px; display: grid; place-items: center; cursor: pointer; position: relative; }
+.icon-btn i { width: 5px; height: 5px; background: var(--lime); border: 1px solid #0d1820; position: absolute; border-radius: 50%; top: 7px; right: 7px; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(145deg, #314656, #152630); color: #cdd8dc; font: 500 10px 'DM Mono'; border: 1px solid #445764; }
+
+main { width: min(1540px, 100%); margin: 0 auto; }
+.search-strip { display: grid; grid-template-columns: minmax(280px, 470px) 190px 1fr auto; align-items: center; gap: 12px; padding: 22px clamp(20px, 3vw, 52px); border-bottom: 1px solid var(--line); }
+.search-field { position: relative; height: 42px; border: 1px solid var(--line); border-radius: 7px; background: #0b161e; display: flex; align-items: center; padding: 0 13px; gap: 10px; transition: border-color .2s; }
+.search-field:focus-within { border-color: rgba(202,255,85,.45); }
+.search-field > svg { color: var(--muted); }
+.search-field input { min-width: 0; flex: 1; border: 0; background: transparent; color: white; outline: none; font-size: 12px; }
+.search-field input::placeholder { color: #62727d; }
+kbd { color: #71808a; border: 1px solid var(--line); background: #111f28; padding: 3px 6px; border-radius: 4px; font: 10px 'DM Mono'; }
+.search-results { position: absolute; left: -1px; right: -1px; top: 48px; background: #0d1922; border: 1px solid rgba(202,255,85,.23); border-radius: 8px; z-index: 90; box-shadow: 0 18px 60px rgba(0,0,0,.55); overflow: hidden; max-height: 390px; overflow-y: auto; }
+.results-caption { padding: 12px 14px 8px; color: #667783; font: 500 9px 'DM Mono'; letter-spacing: .12em; }
+.search-results button { width: 100%; background: none; border: 0; border-top: 1px solid rgba(160,185,199,.08); padding: 11px 13px; display: flex; align-items: center; gap: 12px; cursor: pointer; text-align: left; }
+.search-results button:hover { background: rgba(202,255,85,.06); }
+.search-results button > svg { width: 18px; color: var(--lime); transform: rotate(45deg); }
+.search-results button span:not(.result-alt) { display: flex; flex-direction: column; gap: 2px; }
+.search-results button strong { font: 500 12px 'DM Mono'; }
+.search-results button small { color: var(--muted); font-size: 10px; }
+.result-alt { margin-left: auto; color: #aebac0; font: 10px 'DM Mono'; }
+.search-results p { padding: 18px; margin: 0; color: var(--muted); font-size: 12px; }
+.region-select { height: 42px; display: flex; align-items: center; border: 1px solid var(--line); border-radius: 7px; background: #0b161e; padding: 0 10px; color: var(--muted); }
+.region-select select { appearance: none; min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: #cbd4d8; padding: 0 8px; font-size: 11px; cursor: pointer; }
+.traffic-count { color: var(--muted); display: flex; align-items: center; gap: 8px; font-size: 11px; padding-left: 10px; }
+.traffic-count strong { color: var(--lime); font: 500 12px 'DM Mono'; }
+.refresh-btn { height: 38px; border: 1px solid var(--line); border-radius: 7px; background: #0c1820; color: #aab6bc; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 10px; cursor: pointer; }
+.refresh-btn:hover { color: var(--lime); border-color: rgba(202,255,85,.25); }
+.refresh-btn.loading svg { animation: spin 1s linear infinite; }
+
+.flight-banner { min-height: 133px; display: grid; grid-template-columns: 4px 1.1fr 2.4fr .8fr .8fr auto; align-items: stretch; border-bottom: 1px solid var(--line); padding: 0 clamp(20px, 3vw, 52px); column-gap: clamp(22px, 3vw, 58px); background: linear-gradient(90deg, rgba(202,255,85,.04), transparent 36%); }
+.banner-accent { background: var(--lime); width: 3px; height: 54px; align-self: center; box-shadow: 0 0 18px rgba(202,255,85,.3); }
+.flight-number, .banner-stat { align-self: center; }
+.flight-number span, .banner-stat span, .route-visual span, .viewer-topline span, .selected-map-card span, .map-card-metric span, .eyebrow { display: block; color: #71828d; font: 500 9px 'DM Mono'; letter-spacing: .12em; }
+.flight-number h1 { margin: 4px 0 2px; font: 500 clamp(23px, 2.5vw, 32px) 'DM Mono'; letter-spacing: .04em; }
+.flight-number small, .route-visual small, .banner-stat small { color: #76858f; font-size: 10px; }
+.flight-number .flight-airline { display: block; color: #aab7bd; font-size: 10px; margin-top: 3px; }
+.flight-number .flight-registration { display: block; color: #657681; font: 8px 'DM Mono'; margin-top: 2px; }
+.flight-number .flight-status { display: inline-flex; width: fit-content; margin-top: 7px; padding: 3px 6px; border: 1px solid rgba(202,255,85,.28); border-radius: 3px; background: rgba(202,255,85,.08); color: var(--lime); font: 600 8px 'DM Mono'; letter-spacing: .06em; white-space: nowrap; }
+.flight-number .flight-status.scheduled { color: #f4be6b; border-color: rgba(244,190,107,.32); background: rgba(244,190,107,.08); }
+.flight-number .flight-status.landed { color: #9aacb5; border-color: rgba(154,172,181,.24); background: rgba(154,172,181,.06); }
+.mobile-route-summary { display: none; }
+.route-visual { align-self: center; display: grid; grid-template-columns: minmax(110px, 1fr) minmax(90px, .9fr) minmax(145px, 1.15fr); align-items: center; gap: 14px; }
+.route-visual > div:first-child, .route-visual > div:last-child { min-width: 0; }
+.route-visual strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 clamp(14px, 1.4vw, 17px) 'DM Mono'; margin: 6px 0 3px; }
+.route-visual small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-end { text-align: right; }
+.route-line { display: grid; grid-template-columns: 1fr 34px 1fr; align-items: center; min-width: 130px; height: 34px; gap: 7px; }
+.route-line i { flex: 1; height: 1px; background: repeating-linear-gradient(90deg, #61717a 0 5px, transparent 5px 10px); }
+.route-plane { width: 34px; height: 34px; display: grid; place-items: center; }
+.route-line svg { display: block; width: 27px; height: 27px; color: var(--lime); transform: rotate(90deg); transform-origin: 50% 50%; margin: 0; filter: drop-shadow(0 0 8px rgba(202,255,85,.4)); }
+.banner-stat { padding-left: 22px; border-left: 1px solid var(--line); }
+.banner-stat strong { display: block; margin: 7px 0 4px; font: 500 17px 'DM Mono'; }
+.sound-button { align-self: center; border: 1px solid rgba(202,255,85,.26); background: rgba(202,255,85,.07); border-radius: 7px; display: flex; align-items: center; gap: 10px; padding: 10px 13px; color: var(--lime); cursor: pointer; }
+.sound-button span { text-align: left; }
+.sound-button strong { display: block; font: 600 9px 'DM Mono'; letter-spacing: .08em; }
+.sound-button small { display: block; color: #76858f; font-size: 8px; margin-top: 3px; }
+.sound-button.playing { box-shadow: 0 0 24px rgba(202,255,85,.12); }
+.sound-button.playing svg { animation: soundPulse 1s ease-in-out infinite; }
+
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 295px; gap: 18px; padding: 18px clamp(20px, 3vw, 52px) 34px; }
+.main-column { min-width: 0; }
+.tabs { height: 46px; display: flex; align-items: stretch; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.tabs button { border: 0; background: none; color: #71828c; display: flex; align-items: center; gap: 8px; padding: 0 20px; cursor: pointer; font-size: 11px; position: relative; }
+.tabs button:hover { color: #dbe2e5; }
+.tabs button.active { color: var(--lime); }
+.tabs button.active::after { content: ''; position: absolute; height: 2px; background: var(--lime); left: 18px; right: 18px; bottom: -1px; }
+.updated { margin-left: auto; color: #657681; font: 9px 'DM Mono'; display: flex; align-items: center; gap: 7px; }
+.panel { background: linear-gradient(145deg, rgba(16,30,40,.92), rgba(9,20,28,.94)); border: 1px solid var(--line); border-radius: 8px; }
+.tab-content { animation: rise .35s ease; }
+
+.map-wrap { height: min(66vh, 610px); min-height: 510px; position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #0b151d; }
+.map-canvas { position: absolute; inset: 0; }
+.map-fade { pointer-events: none; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(3,10,15,.05), transparent 50%, rgba(3,10,15,.55)); }
+.maplibregl-canvas { outline: none; }
+.maplibregl-ctrl-attrib { background: rgba(7,16,24,.75) !important; color: #6e7c85; font-size: 8px; }
+.maplibregl-ctrl-attrib a { color: #84939c; }
+.aircraft-marker { --heading: 0deg; appearance: none; -webkit-appearance: none; width: 17px; height: 17px; position: absolute; border: 0; background: transparent; color: #a2b0b8; display: block; cursor: pointer; padding: 0; margin: 0; line-height: 0; filter: drop-shadow(0 2px 4px #000); }
+.aircraft-marker.decluttered { visibility: hidden; pointer-events: none; }
+.aircraft-marker svg { width: 17px; height: 17px; fill: currentColor; transform: rotate(var(--heading)); transition: transform .4s; }
+.aircraft-marker:hover { color: white; }
+.aircraft-marker.selected { color: var(--lime); z-index: 5; position: absolute; width: 26px; height: 26px; display: block; overflow: visible; }
+.aircraft-marker.selected svg { width: 26px; height: 26px; filter: drop-shadow(0 0 7px rgba(202,255,85,.6)); }
+.aircraft-marker .marker-callsign { position: absolute; left: 30px; top: 4px; color: #061014; background: var(--lime); padding: 3px 6px; border-radius: 3px; font: 600 8px 'DM Mono'; letter-spacing: .04em; white-space: nowrap; }
+.aircraft-marker .marker-duration { position: absolute; top: 31px; left: 50%; transform: translateX(-50%); color: #d9e5e9; background: rgba(7,16,24,.94); border: 1px solid rgba(202,255,85,.28); border-radius: 4px; padding: 4px 7px; font: 500 7px 'DM Mono'; letter-spacing: .02em; white-space: nowrap; box-shadow: 0 5px 18px rgba(0,0,0,.35); }
+.route-airport-marker { position: absolute; z-index: 6; display: block; width: 14px; height: 14px; color: #dce8ed; filter: drop-shadow(0 4px 9px rgba(0,0,0,.55)); }
+.route-airport-marker > i { display: block; width: 14px; height: 14px; border: 3px solid #71c4ed; background: #071018; border-radius: 50%; box-shadow: 0 0 12px rgba(113,196,237,.55); }
+.route-airport-marker.destination > i { border-color: var(--lime); box-shadow: 0 0 12px rgba(202,255,85,.5); }
+.route-airport-marker > span { position: absolute; left: 20px; bottom: 50%; transform: translateY(50%); display: flex; flex-direction: column; gap: 1px; background: rgba(7,16,24,.92); border: 1px solid rgba(113,196,237,.3); border-radius: 5px; padding: 5px 7px; white-space: nowrap; }
+.route-airport-marker.label-left > span { left: auto; right: 20px; text-align: right; }
+.route-airport-marker.destination > span { border-color: rgba(202,255,85,.3); }
+.route-airport-marker strong { color: #dce8ed; font: 600 8px 'DM Mono'; letter-spacing: .05em; }
+.route-airport-marker small { color: #80919b; font-size: 7px; }
+.user-location-marker { width: 16px; height: 16px; border: 3px solid #f5fbff; border-radius: 50%; background: #369cff; box-shadow: 0 0 0 7px rgba(54,156,255,.18), 0 0 20px rgba(54,156,255,.75); }
+.maplibregl-popup-content { background: #101e27; color: white; padding: 9px 11px; border: 1px solid rgba(202,255,85,.2); border-radius: 5px; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+.maplibregl-popup-content strong, .maplibregl-popup-content small { display: block; font: 10px 'DM Mono'; }
+.maplibregl-popup-content small { color: #84929a; margin-top: 4px; font-size: 8px; }
+.maplibregl-popup-tip { border-top-color: #101e27 !important; }
+.map-tools { position: absolute; right: 14px; top: 14px; display: flex; flex-direction: column; background: rgba(10,22,30,.91); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.map-tools button { width: 34px; height: 34px; border: 0; border-bottom: 1px solid var(--line); background: none; display: grid; place-items: center; color: #9cabb2; cursor: pointer; }
+.map-tools button:last-child { border-bottom: 0; }
+.map-tools button:hover { color: var(--lime); background: var(--lime-soft); }
+.map-style { position: absolute; top: 14px; left: 14px; height: 34px; border: 1px solid var(--line); border-radius: 6px; background: rgba(10,22,30,.91); display: flex; align-items: center; gap: 7px; color: #9cabb2; font-size: 9px; padding: 0 11px; cursor: pointer; }
+.map-legend { position: absolute; top: 58px; left: 14px; display: flex; flex-direction: column; gap: 7px; padding: 9px 11px; border-radius: 5px; background: rgba(8,18,25,.82); color: #8b9aa3; font-size: 8px; }
+.map-legend span { display: flex; align-items: center; gap: 7px; }
+.map-legend i { width: 5px; height: 5px; border-radius: 50%; background: #9aa8b0; }
+.map-legend .legend-selected { background: var(--lime); box-shadow: 0 0 7px var(--lime); }
+.map-legend .legend-route, .map-legend .legend-trail { width: 17px; height: 2px; border-radius: 0; background: repeating-linear-gradient(90deg, #71c4ed 0 4px, transparent 4px 7px); }
+.map-legend .legend-trail { background: repeating-linear-gradient(90deg, var(--lime) 0 4px, transparent 4px 7px); }
+.selected-map-card { position: absolute; left: 14px; right: 14px; bottom: 14px; min-height: 72px; border: 1px solid rgba(160,185,199,.15); border-radius: 7px; background: rgba(8,18,25,.91); backdrop-filter: blur(12px); display: grid; grid-template-columns: 44px 1fr auto auto; gap: 17px; align-items: center; padding: 10px 16px; }
+.map-plane { width: 38px; height: 38px; border-radius: 50%; background: var(--lime-soft); color: var(--lime); display: grid; place-items: center; }
+.map-plane svg { width: 22px; transform: rotate(var(--heading, 0deg)); transition: transform .4s; }
+.selected-map-card strong { display: block; font: 500 14px 'DM Mono'; margin: 4px 0 2px; }
+.selected-map-card small { color: #73838c; font-size: 9px; }
+.selected-map-card .route-card-meta { display: block; color: #8ebdd4; font: 500 7px 'DM Mono'; margin-top: 4px; white-space: nowrap; }
+.map-card-metric { min-width: 100px; padding-left: 20px; border-left: 1px solid var(--line); }
+.map-card-metric b { display: block; margin-top: 6px; font: 500 12px 'DM Mono'; }
+
+.flight-sidebar { display: flex; flex-direction: column; gap: 12px; padding-top: 58px; }
+.identity-card { padding: 20px; }
+.card-heading { display: flex; justify-content: space-between; align-items: flex-start; }
+.card-heading span { color: #70808a; font: 500 8px 'DM Mono'; letter-spacing: .12em; }
+.card-heading h2 { font: 500 23px 'DM Mono'; margin: 5px 0 0; letter-spacing: .03em; }
+.radar-pulse { width: 35px; height: 35px; display: grid; place-items: center; border: 1px solid rgba(202,255,85,.17); border-radius: 50%; color: var(--lime); position: relative; }
+.radar-pulse i { position: absolute; inset: 5px; border: 1px solid rgba(202,255,85,.15); border-radius: 50%; }
+.operator { display: flex; gap: 11px; align-items: center; margin: 20px 0; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.operator > span { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 5px; background: #ecf2f4; color: #0a141c; font: 700 10px 'DM Mono'; }
+.operator div { min-width: 0; }
+.operator strong, .operator small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.operator strong { font-size: 11px; }
+.operator small { color: var(--muted); font-size: 9px; margin-top: 4px; }
+.status-ribbon { color: var(--lime); font: 500 9px 'DM Mono'; letter-spacing: .06em; }
+.status-ribbon i { display: inline-block; width: 5px; height: 5px; background: var(--lime); border-radius: 50%; margin-right: 7px; box-shadow: 0 0 7px var(--lime); }
+.status-ribbon span { color: #4f606a; padding: 0 6px; }
+.status-ribbon.scheduled { color: #f4be6b; }
+.status-ribbon.scheduled i { background: #f4be6b; box-shadow: 0 0 7px rgba(244,190,107,.75); }
+.status-ribbon.landed { color: #9aacb5; }
+.status-ribbon.landed i { background: #9aacb5; box-shadow: none; }
+.quick-stats { display: grid; grid-template-columns: 1fr; }
+.quick-stats div { position: relative; min-height: 74px; display: grid; grid-template-columns: 24px 1fr; grid-template-rows: auto auto; align-content: center; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.quick-stats div:last-child { border-bottom: 0; }
+.quick-stats svg { grid-row: 1 / 3; align-self: center; color: #6e818c; }
+.quick-stats span { color: #6c7b85; font: 500 8px 'DM Mono'; letter-spacing: .1em; }
+.quick-stats strong { font: 500 14px 'DM Mono'; margin-top: 6px; }
+.details-card { padding: 18px; }
+.panel-title { display: flex; justify-content: space-between; align-items: center; color: #80909a; font: 500 9px 'DM Mono'; letter-spacing: .11em; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.panel-title small { color: var(--lime); }
+.details-card dl { margin: 7px 0 0; }
+.details-card dl div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.details-card dt { color: #758690; font-size: 9px; }
+.details-card dd { margin: 0; font: 500 9px 'DM Mono'; text-align: right; max-width: 155px; }
+.source-card { padding: 16px 18px; }
+.source-live { display: flex; align-items: center; gap: 7px; color: var(--lime); font: 500 8px 'DM Mono'; letter-spacing: .1em; }
+.source-card p { color: #6e7f89; font-size: 9px; line-height: 1.6; margin: 10px 0; }
+.source-card a { color: #9aabb4; font: 9px 'DM Mono'; }
+
+.trajectory-view { display: flex; flex-direction: column; gap: 12px; min-height: 510px; }
+.trajectory-hero { padding: 24px 28px 20px; overflow: hidden; }
+.eyebrow { color: var(--lime); display: flex; align-items: center; gap: 7px; }
+.route-title-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 24px; margin-top: 24px; }
+.route-title-row span { color: #6f808a; font: 8px 'DM Mono'; letter-spacing: .1em; }
+.route-title-row strong { display: block; font: 500 16px 'DM Mono'; margin-top: 6px; }
+.route-title-row small { color: var(--muted); font-size: 9px; }
+.route-title-row .destination { text-align: right; }
+.route-progress { display: flex; align-items: center; }
+.route-progress::before { content: ''; height: 1px; flex: 1; background: linear-gradient(90deg, #42545e, var(--lime)); }
+.route-progress i { width: 5px; height: 5px; background: #60727d; border-radius: 50%; margin-left: 14%; }
+.route-progress i.active { background: var(--lime); box-shadow: 0 0 9px var(--lime); }
+.altitude-chart { position: relative; height: 235px; margin-top: 12px; background-image: linear-gradient(rgba(144,170,184,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(144,170,184,.05) 1px, transparent 1px); background-size: 100% 25%, 12.5% 100%; border-left: 1px solid rgba(144,170,184,.1); border-bottom: 1px solid rgba(144,170,184,.1); }
+.altitude-chart svg { position: absolute; inset: 0; width: 100%; height: calc(100% - 26px); overflow: visible; }
+.chart-label { position: absolute; left: 5px; color: #566873; font: 8px 'DM Mono'; z-index: 2; }
+.chart-label.top { top: 7px; }.chart-label.bottom { bottom: 29px; }
+.chart-times { position: absolute; left: 9%; right: 0; bottom: 4px; display: flex; justify-content: space-between; color: #60717b; font: 8px 'DM Mono'; }
+.trajectory-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; }
+.telemetry-card, .signal-card { padding: 18px 20px; }
+.telemetry-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0 26px; }
+.telemetry-list > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid rgba(160,185,199,.09); }
+.telemetry-list span { color: #778892; font-size: 9px; }
+.telemetry-list strong { display: flex; align-items: center; gap: 4px; font: 500 10px 'DM Mono'; }
+.phase-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 7px var(--lime); }
+.positive { color: var(--lime); }.negative { color: #f0b66b; }
+.signal-main { display: flex; align-items: center; gap: 12px; padding-top: 18px; color: var(--lime); }
+.signal-main strong, .signal-main span { display: block; }
+.signal-main strong { font: 500 21px 'DM Mono'; }.signal-main span { color: #7c8c95; font-size: 9px; margin-top: 3px; }
+.signal-bars { display: flex; align-items: end; gap: 3px; height: 43px; margin: 12px 0; }
+.signal-bars i { flex: 1; height: 22%; background: #23343e; border-radius: 1px; }
+.signal-bars i:nth-child(3n) { height: 42%; }.signal-bars i:nth-child(4n) { height: 68%; }.signal-bars i:nth-child(5n) { height: 95%; }
+.signal-bars i.filled { background: linear-gradient(180deg, var(--lime), #6a8b35); box-shadow: 0 0 7px rgba(202,255,85,.12); }
+.signal-card p { color: #71818b; font-size: 9px; line-height: 1.65; }
+
+.viewer-layout { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 12px; min-height: 560px; }
+.viewer-3d { min-height: 560px; position: relative; overflow: hidden; }
+.viewer-3d canvas { position: absolute !important; inset: 0; }
+.viewer-topline { position: absolute; z-index: 2; top: 18px; left: 20px; right: 20px; display: flex; justify-content: space-between; pointer-events: none; }
+.viewer-topline strong { display: block; font: 500 13px 'DM Mono'; margin-top: 5px; }
+.viewer-topline > small { color: #667983; font: 8px 'DM Mono'; letter-spacing: .08em; }
+.viewer-topline .match-badge { border: 1px solid rgba(202,255,85,.18); background: rgba(202,255,85,.06); color: var(--lime); border-radius: 20px; padding: 6px 9px; height: fit-content; }
+.viewer-topline .match-badge.fallback { color: #f4be6b; border-color: rgba(244,190,107,.2); background: rgba(244,190,107,.06); }
+.viewer-actions { position: absolute; z-index: 3; bottom: 18px; left: 18px; display: flex; gap: 7px; }
+.viewer-actions button { height: 33px; border: 1px solid var(--line); border-radius: 5px; background: rgba(8,18,25,.85); color: #98a7ae; display: flex; align-items: center; gap: 7px; padding: 0 10px; font-size: 9px; cursor: pointer; }
+.viewer-actions button.active { color: var(--lime); border-color: rgba(202,255,85,.23); }
+.viewer-hint { position: absolute; z-index: 2; bottom: 24px; right: 18px; color: #647781; font-size: 8px; display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.model-loader { position: absolute; z-index: 8; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--lime); font: 10px 'DM Mono'; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.model-loader span { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); animation: pulse 1s infinite; }
+.model-error { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 7px; color: #f4be6b; background: radial-gradient(circle, rgba(244,190,107,.07), transparent 45%); }
+.model-error strong { font: 500 11px 'DM Mono'; }.model-error span { color: #73848e; font-size: 9px; }
+.viewer-details { padding: 22px; }
+.viewer-details h2 { font-size: 21px; line-height: 1.2; margin: 13px 0 11px; }
+.viewer-details > p { color: #798993; font-size: 10px; line-height: 1.7; }
+.texture-features { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 3px; }
+.texture-features span { display: flex; align-items: center; gap: 5px; border: 1px solid rgba(113,196,237,.16); background: rgba(113,196,237,.05); color: #8cb1c4; border-radius: 20px; padding: 5px 7px; font: 7px 'DM Mono'; letter-spacing: .04em; }
+.spec-grid { margin: 23px 0; display: grid; grid-template-columns: 1fr; }
+.spec-grid div { border-top: 1px solid var(--line); padding: 12px 0; }
+.spec-grid span, .model-credit span { display: block; color: #70808a; font: 8px 'DM Mono'; letter-spacing: .1em; }
+.spec-grid strong { display: block; font: 500 11px 'DM Mono'; margin-top: 5px; }
+.model-match { display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; align-items: center; margin: 17px 0; padding: 13px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.model-match span { color: #70808a; font: 8px 'DM Mono'; letter-spacing: .1em; }
+.model-match strong { font: 500 10px 'DM Mono'; text-align: right; }
+.model-match i { display: none; }
+.model-credit { display: block; color: inherit; text-decoration: none; padding: 14px; background: rgba(202,255,85,.05); border: 1px solid rgba(202,255,85,.13); border-radius: 6px; }
+.model-credit:hover { border-color: rgba(202,255,85,.3); }
+.model-credit strong { display: block; font-size: 10px; margin: 8px 0 4px; }.model-credit small { color: #75868f; font-size: 8px; }
+
+footer { min-height: 65px; padding: 0 clamp(20px, 3vw, 52px); border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 20px; color: #5d6e78; font: 8px 'DM Mono'; letter-spacing: .05em; }
+footer div, footer > span:last-child { display: flex; align-items: center; gap: 8px; }
+footer .logo-mark { transform: scale(.65); transform-origin: center; }
+.boot-screen { position: fixed; inset: 0; background: var(--bg); display: grid; place-content: center; gap: 18px; justify-items: center; color: #7f8f98; font: 10px 'DM Mono'; letter-spacing: .1em; }
+
+@keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes rise { from { opacity: 0; transform: translateY(7px); } }
+@keyframes soundPulse { 50% { transform: scale(1.15); } }
+
+@media (max-width: 1120px) {
+  .flight-banner { grid-template-columns: 4px 1fr 1.7fr .7fr auto; column-gap: 25px; }
+  .route-visual { grid-template-columns: minmax(80px, 1fr) 64px minmax(125px, 1.25fr); gap: 8px; }
+  .route-line { min-width: 0; grid-template-columns: 1fr 30px 1fr; gap: 4px; }
+  .route-plane { width: 30px; height: 30px; }
+  .route-line svg { width: 24px; height: 24px; }
+  .flight-banner .banner-stat:nth-of-type(5) { display: none; }
+  .workspace { grid-template-columns: minmax(0, 1fr) 260px; }
+  .traffic-count { display: none; }
+  .search-strip { grid-template-columns: minmax(250px, 1fr) 180px auto; }
+}
+
+@media (max-width: 860px) {
+  .topbar { gap: 20px; }
+  .avatar { display: none; }
+  .flight-banner { grid-template-columns: 4px 1fr 1.4fr auto; }
+  .banner-stat { display: none; }
+  .workspace { grid-template-columns: 1fr; }
+  .flight-sidebar { padding-top: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  .quick-stats { grid-row: span 2; }
+  .map-wrap { min-height: 480px; }
+}
+
+@media (max-width: 640px) {
+  .topbar { padding: 0 15px; height: 60px; }
+  .brand { font-size: 16px; }
+  .live-state { font-size: 9px; padding: 6px 8px; }
+  .icon-btn { display: none; }
+  .search-strip { grid-template-columns: 1fr auto; padding: 14px 15px; }
+  .search-field input, .region-select select { font-size: 16px; }
+  .region-select { grid-row: 2; grid-column: 1 / 3; }
+  .refresh-btn span, kbd { display: none; }
+  .refresh-btn { width: 42px; justify-content: center; padding: 0; }
+  .flight-banner { grid-template-columns: 3px 1fr auto; min-height: 145px; padding: 0 15px; gap: 15px; }
+  .route-visual { display: none; }
+  .sound-button { padding: 9px; }
+  .sound-button span { display: none; }
+  .workspace { padding: 12px 15px 25px; }
+  .tabs button { padding: 0 10px; }
+  .tabs button.active::after { left: 8px; right: 8px; }
+  .tabs button svg { display: none; }
+  .updated { display: none; }
+  .map-wrap { min-height: 530px; height: 68vh; }
+  .selected-map-card { grid-template-columns: 38px 1fr; }
+  .map-card-metric { display: none; }
+  .flight-sidebar { grid-template-columns: 1fr; }
+  .quick-stats { grid-row: auto; grid-template-columns: repeat(3, 1fr); }
+  .quick-stats div { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; padding: 13px 10px; border-bottom: 0; border-right: 1px solid var(--line); }
+  .quick-stats div:last-child { border-right: 0; }
+  .quick-stats svg { margin-bottom: 8px; }
+  .quick-stats strong { font-size: 13px; }
+  .flight-number span, .banner-stat span, .viewer-topline span, .selected-map-card span, .map-card-metric span, .eyebrow { font-size: 10px; }
+  .flight-number h1 { font-size: 27px; }
+  .flight-number small, .route-visual small, .banner-stat small { font-size: 12px; }
+  .flight-number .mobile-route-summary { display: block; max-width: 235px; margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8ebdd4; font: 500 10px 'DM Mono'; }
+  .flight-number .flight-status { font-size: 10px; padding: 4px 7px; }
+  .tabs button { font-size: 12px; }
+  .map-style { font-size: 11px; }
+  .map-legend { font-size: 10px; }
+  .aircraft-marker .marker-callsign { font-size: 10px; }
+  .aircraft-marker .marker-duration { font-size: 9px; }
+  .route-airport-marker { width: 16px; height: 16px; }
+  .route-airport-marker > i { width: 16px; height: 16px; }
+  .route-airport-marker > span { left: 22px; padding: 6px 8px; }
+  .route-airport-marker.label-left > span { right: 22px; }
+  .route-airport-marker strong { font-size: 10px; }
+  .route-airport-marker small { font-size: 9px; }
+  .selected-map-card strong { font-size: 17px; }
+  .selected-map-card small { font-size: 11px; }
+  .selected-map-card .route-card-meta { font-size: 9px; white-space: normal; }
+  .operator strong { font-size: 13px; }
+  .operator small, .details-card dt, .details-card dd, .status-ribbon, .panel-title { font-size: 11px; }
+  .quick-stats span, .source-live { font-size: 10px; }
+  .source-card p, .source-card a { font-size: 11px; }
+  .trajectory-hero { padding: 20px 15px; }
+  .route-title-row { gap: 10px; }.route-progress { display: none; }.route-title-row { grid-template-columns: 1fr 1fr; }
+  .trajectory-grid { grid-template-columns: 1fr; }
+  .telemetry-list { grid-template-columns: 1fr; }
+  .route-title-row span { font-size: 10px; }
+  .route-title-row strong { font-size: 18px; }
+  .route-title-row small { font-size: 11px; }
+  .telemetry-list span { font-size: 11px; }
+  .telemetry-list strong { font-size: 12px; }
+  .signal-main span, .signal-card p { font-size: 11px; }
+  .viewer-layout { grid-template-columns: 1fr; }
+  .viewer-3d { min-height: 500px; }
+  .viewer-hint { display: none; }
+  .viewer-topline strong { font-size: 15px; }
+  .viewer-topline > small, .viewer-topline .match-badge, .texture-features span { font-size: 9px; }
+  .spec-grid span, .model-credit span, .model-credit small { font-size: 10px; }
+  .model-match span { font-size: 10px; }
+  .model-match strong, .model-credit strong { font-size: 12px; }
+  footer { flex-direction: column; padding-top: 20px; padding-bottom: 20px; align-items: flex-start; }
+  footer { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}

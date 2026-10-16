@@ -1,0 +1,50 @@
+{
+	email admin@guilleme.net
+}
+
+linky.guilleme.net {
+	reverse_proxy 127.0.0.1:8080
+}
+
+meteo.guilleme.net {
+	reverse_proxy 127.0.0.1:3090
+}
+
+# Static genealogy page
+gen.guilleme.net {
+	root * /opt/gen.guilleme.net
+	header {
+		Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+		Pragma "no-cache"
+		Expires "0"
+	}
+	file_server
+}
+
+flight.guilleme.net {
+	encode zstd gzip
+
+	handle_path /api/route/* {
+		rewrite * /v0/callsign{path}
+		reverse_proxy https://api.adsbdb.com {
+			header_up Host api.adsbdb.com
+			header_up User-Agent "AeroScope/1.0"
+		}
+	}
+
+	handle_path /api/aircraft/* {
+		rewrite * /v2{path}
+		reverse_proxy https://api.adsb.lol {
+			header_up Host api.adsb.lol
+			header_up User-Agent "AeroScope/1.0"
+		}
+	}
+
+	handle {
+		root * /opt/flight.guilleme.net
+		try_files {path} /index.html
+		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		header /models/* Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+}
