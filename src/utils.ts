@@ -36,6 +36,39 @@ export function estimatedTrail(aircraft: Aircraft) {
   }).concat([[lon, lat]])
 }
 
+export function routeAlignedTrail(origin: Airport, destination: Airport, aircraft: Aircraft) {
+  if (typeof aircraft.lat !== 'number' || typeof aircraft.lon !== 'number') return estimatedTrail(aircraft)
+
+  const routePoints = greatCirclePoints(origin, destination, 160)
+  const aircraftPosition = { latitude: aircraft.lat, longitude: aircraft.lon }
+  let closestIndex = 0
+  let closestDistance = Number.POSITIVE_INFINITY
+
+  routePoints.forEach(([longitude, latitude], index) => {
+    const distance = distanceNm(aircraftPosition, { latitude, longitude })
+    if (distance < closestDistance) {
+      closestDistance = distance
+      closestIndex = index
+    }
+  })
+
+  const recentDistanceNm = Math.max(aircraft.gs || 250, 80) * (24 / 60)
+  let startIndex = closestIndex
+  let coveredDistance = 0
+  while (startIndex > 0 && coveredDistance < recentDistanceNm) {
+    const [fromLongitude, fromLatitude] = routePoints[startIndex - 1]
+    const [toLongitude, toLatitude] = routePoints[startIndex]
+    coveredDistance += distanceNm(
+      { latitude: fromLatitude, longitude: fromLongitude },
+      { latitude: toLatitude, longitude: toLongitude },
+    )
+    startIndex -= 1
+  }
+
+  const trail = routePoints.slice(startIndex, closestIndex + 1)
+  return trail.length > 1 ? trail : [routePoints[closestIndex], routePoints[closestIndex]]
+}
+
 export function distanceNm(from: Pick<Airport, 'latitude' | 'longitude'>, to: Pick<Airport, 'latitude' | 'longitude'>) {
   const radiusNm = 3440.065
   const lat1 = from.latitude * Math.PI / 180

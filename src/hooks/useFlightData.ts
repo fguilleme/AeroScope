@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { aircraftName, airlineFromCallsign, fallbackAircraft } from '../data'
 import type { Aircraft, Region } from '../types'
+import { fetchOpenSkyAircraft } from '../services/opensky'
 
 const REFRESH_MS = 20_000
 
@@ -25,9 +26,18 @@ export function useFlightData(region: Region) {
       setError(null)
       setLastUpdate(new Date())
     } catch (reason) {
-      setIsLive(false)
-      setError(reason instanceof Error ? reason.message : 'Source indisponible')
-      setAircraft(current => current.length ? current : fallbackAircraft)
+      try {
+        const fallback = await fetchOpenSkyAircraft(region, AbortSignal.timeout(10_000))
+        if (!fallback.length) throw reason
+        setAircraft(fallback)
+        setIsLive(true)
+        setError(null)
+        setLastUpdate(new Date())
+      } catch {
+        setIsLive(false)
+        setError(reason instanceof Error ? reason.message : 'Source indisponible')
+        setAircraft(current => current.length ? current : fallbackAircraft)
+      }
     } finally {
       setLoading(false)
     }

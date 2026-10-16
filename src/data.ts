@@ -35,7 +35,7 @@ export const watchedFlights: Aircraft[] = [
 
 export const airlineFromCallsign = (callsign = '') => {
   const code = callsign.trim().slice(0, 3)
-  return ({ AFR: 'Air France', RYR: 'Ryanair', BAW: 'British Airways', DLH: 'Lufthansa', KLM: 'KLM', SWR: 'SWISS', EZY: 'easyJet', UAL: 'United Airlines', DAL: 'Delta Air Lines', VIR: 'Virgin Atlantic', UAE: 'Emirates', QTR: 'Qatar Airways' } as Record<string, string>)[code] || 'Opérateur non identifié'
+  return ({ AFR: 'Air France', AEA: 'Air Europa', RYR: 'Ryanair', BAW: 'British Airways', DLH: 'Lufthansa', KLM: 'KLM', SWR: 'SWISS', EZY: 'easyJet', EJU: 'easyJet Europe', UAL: 'United Airlines', DAL: 'Delta Air Lines', VIR: 'Virgin Atlantic', UAE: 'Emirates', QTR: 'Qatar Airways', BEL: 'Brussels Airlines', IBE: 'Iberia', TAP: 'TAP Air Portugal', TVF: 'Transavia France', TRA: 'Transavia', TFL: 'TUI fly Netherlands', RAM: 'Royal Air Maroc', ITY: 'ITA Airways', AUA: 'Austrian Airlines', FIN: 'Finnair', EIN: 'Aer Lingus', EWG: 'Eurowings', WMT: 'Wizz Air Malta', NSZ: 'Norwegian Air Sweden', CRL: 'Corsair', LBT: 'Nouvelair', TOS: 'Tropic Air', TAI: 'Avianca El Salvador', AAL: 'American Airlines', AMX: 'Aeroméxico', VOI: 'Volaris', VIV: 'Viva Aerobus' } as Record<string, string>)[code] || 'Opérateur non identifié'
 }
 
 export const aircraftName = (type = '') => ({

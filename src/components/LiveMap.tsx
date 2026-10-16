@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import maplibregl, { type Map as MapLibreMap, type Marker } from 'maplibre-gl'
 import { Layers3, LocateFixed, Minus, Plus } from 'lucide-react'
 import type { Aircraft, FlightRoute, Region } from '../types'
-import { clean, compactDuration, estimatedTrail, feet, flightDurations, greatCirclePoints, knots } from '../utils'
+import { clean, compactDuration, estimatedTrail, feet, flightDurations, greatCirclePoints, knots, routeAlignedTrail } from '../utils'
 import { PlaneGlyph } from './Icons'
 import { useI18n } from '../i18n'
 
@@ -76,6 +76,11 @@ export default function LiveMap({ aircraft, selected, region, route, focusReques
   const [base, setBase] = useState<keyof typeof styles>('dark')
   const durations = useMemo(() => route ? flightDurations(route.origin, route.destination, selected) : null, [route, selected])
   const durationText = durations ? `${t('totalShort')} ${compactDuration(durations.total)} · ${t('remainingShort')} ${compactDuration(durations.remaining)}` : ''
+  const selectedTrail = useMemo(() => selected.trackingState === 'scheduled'
+    ? []
+    : route
+      ? routeAlignedTrail(route.origin, route.destination, selected)
+      : estimatedTrail(selected), [route, selected])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -90,10 +95,10 @@ export default function LiveMap({ aircraft, selected, region, route, focusReques
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
     map.on('load', () => {
       useLocalMapNames(map)
-      map.addSource('flight-route', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } } })
+      map.addSource('flight-route', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route ? greatCirclePoints(route.origin, route.destination) : [] } } })
       map.addLayer({ id: 'flight-route-glow', type: 'line', source: 'flight-route', paint: { 'line-color': '#71c4ed', 'line-width': 7, 'line-opacity': 0.09, 'line-blur': 5 } })
       map.addLayer({ id: 'flight-route', type: 'line', source: 'flight-route', paint: { 'line-color': '#71c4ed', 'line-width': 1.4, 'line-opacity': 0.68, 'line-dasharray': [1.2, 1.8] } })
-      map.addSource('selected-trail', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: selected.trackingState === 'scheduled' ? [] : estimatedTrail(selected) } } })
+      map.addSource('selected-trail', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: selectedTrail } } })
       map.addLayer({ id: 'selected-trail-glow', type: 'line', source: 'selected-trail', paint: { 'line-color': '#caff55', 'line-width': 8, 'line-opacity': 0.12, 'line-blur': 6 } })
       map.addLayer({ id: 'selected-trail', type: 'line', source: 'selected-trail', paint: { 'line-color': '#caff55', 'line-width': 2.2, 'line-opacity': 0.85, 'line-dasharray': [0.3, 1.5] } })
     })
@@ -135,14 +140,14 @@ export default function LiveMap({ aircraft, selected, region, route, focusReques
     const update = () => {
       if (cancelled || mapRef.current !== map) return
       const source = map.getSource('selected-trail') as maplibregl.GeoJSONSource | undefined
-      source?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: selected.trackingState === 'scheduled' ? [] : estimatedTrail(selected) } })
+      source?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: selectedTrail } })
     }
     map.isStyleLoaded() ? update() : map.once('load', update)
     return () => {
       cancelled = true
       map.off('load', update)
     }
-  }, [selected])
+  }, [selectedTrail])
 
   useEffect(() => {
     const map = mapRef.current
