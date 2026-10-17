@@ -52,8 +52,9 @@ export async function fetchOpenSkyAircraft(region: Region, signal?: AbortSignal)
   return aircraftFromPayload(payload)
 }
 
-export async function fetchOpenSkyGlobal(signal?: AbortSignal) {
-  const response = await fetch('/api/opensky', { signal })
+export async function fetchOpenSkyGlobal(signal?: AbortSignal, icao24?: string) {
+  const query = icao24 ? `?icao24=${encodeURIComponent(icao24)}` : ''
+  const response = await fetch(`/api/opensky${query}`, { signal })
   if (!response.ok) throw new Error(`OpenSky HTTP ${response.status}`)
   return aircraftFromPayload(await response.json() as OpenSkyPayload)
 }

@@ -138,17 +138,26 @@ export default function App() {
     : aircraft, [aircraft, externalAircraft])
   const selected = useMemo(() => displayAircraft.find(item => item.hex === selectedHex) || displayAircraft.find(item => item.flight) || displayAircraft[0], [displayAircraft, selectedHex])
   const fetchedRoute = useFlightRoute(selected?.flight)
+  const indexedSelectedRoute = selected?.flight ? routeIndex[normalizedFlight(selected.flight)] || null : null
   const route = useMemo(() => {
-    if (!fetchedRoute || fetchedRoute.callsign.trim().toUpperCase() !== selected?.flight?.trim().toUpperCase()) return null
-    if (typeof selected?.lat !== 'number' || typeof selected.lon !== 'number') return fetchedRoute
-    const total = distanceNm(fetchedRoute.origin, fetchedRoute.destination)
-    const viaAircraft = distanceNm(fetchedRoute.origin, { latitude: selected.lat, longitude: selected.lon })
-      + distanceNm({ latitude: selected.lat, longitude: selected.lon }, fetchedRoute.destination)
-    return viaAircraft <= Math.max(total * 1.65, total + 350) ? fetchedRoute : null
-  }, [fetchedRoute, selected?.flight, selected?.lat, selected?.lon])
-  const remainingDistance = useMemo(() => route && typeof selected?.lat === 'number' && typeof selected.lon === 'number'
-    ? distanceNm({ latitude: selected.lat, longitude: selected.lon }, route.destination)
-    : null, [route, selected?.lat, selected?.lon])
+    const candidateRoute = fetchedRoute || indexedSelectedRoute
+    if (!candidateRoute || candidateRoute.callsign.trim().toUpperCase() !== selected?.flight?.trim().toUpperCase()) return null
+    if (typeof selected?.lat !== 'number' || typeof selected.lon !== 'number') return candidateRoute
+    const total = distanceNm(candidateRoute.origin, candidateRoute.destination)
+    const viaAircraft = distanceNm(candidateRoute.origin, { latitude: selected.lat, longitude: selected.lon })
+      + distanceNm({ latitude: selected.lat, longitude: selected.lon }, candidateRoute.destination)
+    return viaAircraft <= Math.max(total * 1.65, total + 350) ? candidateRoute : null
+  }, [fetchedRoute, indexedSelectedRoute, selected?.flight, selected?.lat, selected?.lon])
+  const routeDistance = useMemo(() => {
+    if (!route) return null
+    const hasLivePosition = (isLive || selected?.trackingState === 'live') && selected?.trackingState !== 'scheduled' && typeof selected.lat === 'number' && typeof selected.lon === 'number'
+    return {
+      total: distanceNm(route.origin, route.destination),
+      remaining: hasLivePosition
+        ? distanceNm({ latitude: selected.lat!, longitude: selected.lon! }, route.destination)
+        : null,
+    }
+  }, [isLive, route, selected?.trackingState, selected?.lat, selected?.lon])
   const sound = useEngineSound(selected?.gs || 350)
   useEffect(() => {
     const searchText = query.trim()
@@ -290,26 +299,73 @@ export default function App() {
     const callsign = externalAircraft?.adsbCallsign
     if (!callsign) return
     let cancelled = false
+    let trackedHex = externalAircraft.hex.startsWith('scheduled-') ? '' : externalAircraft.hex
+    const rawCallsigns: string[] = []
+    const matchingCallsigns = new Set<string>()
+    const addCallsign = (value?: string) => {
+      const cleaned = value?.trim().toUpperCase()
+      if (!cleaned) return
+      const shortIcao = cleaned.match(/^([A-Z]{3})(\d{1,2})$/)
+      const variants = shortIcao ? [cleaned, `${shortIcao[1]}${shortIcao[2].padStart(3, '0')}`] : [cleaned]
+      variants.forEach(variant => {
+        if (!rawCallsigns.includes(variant)) rawCallsigns.push(variant)
+        matchingCallsigns.add(normalizedFlight(variant))
+      })
+    }
+    ;[callsign, ...(externalAircraft.aliases || []), externalAircraft.flight].forEach(addCallsign)
+    let routeResolved = false
     const poll = async () => {
-      try {
-        const response = await fetch(`/api/aircraft/callsign/${encodeURIComponent(callsign)}`, { signal: AbortSignal.timeout(10_000) })
-        if (!response.ok) return
-        const payload = await response.json() as { ac?: Aircraft[] }
-        const live = payload.ac?.find(item => typeof item.lat === 'number' && typeof item.lon === 'number')
-        if (!live || cancelled) return
-        const next: Aircraft = {
-          ...externalAircraft,
-          ...live,
-          flight: externalAircraft.flight,
-          ownOp: live.ownOp || externalAircraft.ownOp || airlineFromCallsign(callsign),
-          desc: live.desc || externalAircraft.desc || aircraftName(live.t),
-          trackingState: 'live',
+      let live: Aircraft | undefined
+      if (!routeResolved) {
+        routeResolved = true
+        try {
+          const response = await fetch(`/api/route/${encodeURIComponent(externalAircraft.flight?.trim() || callsign)}`, { signal: AbortSignal.timeout(8_000) })
+          if (response.ok) {
+            const payload = await response.json() as { response?: { flightroute?: FlightRoute } }
+            const resolvedRoute = payload.response?.flightroute
+            if (resolvedRoute?.origin && resolvedRoute.destination) {
+              addCallsign(resolvedRoute.callsign_icao)
+              addCallsign(resolvedRoute.callsign_iata)
+              const key = normalizedFlight(externalAircraft.flight || callsign)
+              setRouteIndex(current => ({ ...current, [key]: resolvedRoute }))
+            }
+          }
+        } catch {
+          // Callsign aliases supplied by the stored flight may still be sufficient.
         }
-        setExternalAircraft(next)
-        setSelectedHex(next.hex)
-      } catch {
-        // Keep the scheduled card visible until an ADS-B signal becomes available.
       }
+      rawCallsigns.sort((left, right) => Number(right.startsWith(callsign.slice(0, 3))) - Number(left.startsWith(callsign.slice(0, 3))) || right.length - left.length)
+      try {
+        const openSkyAircraft = await fetchOpenSkyGlobal(AbortSignal.timeout(12_000), trackedHex || undefined)
+        live = openSkyAircraft.find(item => matchingCallsigns.has(normalizedFlight(item.flight || '')))
+      } catch {
+        // The secondary ADS-B source below may still have the aircraft.
+      }
+      if (!live) {
+        for (const candidate of rawCallsigns) {
+          try {
+            const response = await fetch(`/api/aircraft/callsign/${encodeURIComponent(candidate)}`, { signal: AbortSignal.timeout(8_000) })
+            if (!response.ok) continue
+            const payload = await response.json() as { ac?: Aircraft[] }
+            live = payload.ac?.find(item => typeof item.lat === 'number' && typeof item.lon === 'number')
+            if (live) break
+          } catch {
+            // Try the next known callsign variant.
+          }
+        }
+      }
+      if (!live || cancelled) return
+      trackedHex = live.hex
+      const next: Aircraft = {
+        ...externalAircraft,
+        ...live,
+        flight: externalAircraft.flight,
+        ownOp: live.ownOp || externalAircraft.ownOp || airlineFromCallsign(callsign),
+        desc: live.desc || externalAircraft.desc || aircraftName(live.t),
+        trackingState: 'live',
+      }
+      setExternalAircraft(next)
+      setSelectedHex(next.hex)
     }
     void poll()
     const timer = window.setInterval(poll, 20_000)
@@ -336,7 +392,15 @@ export default function App() {
   const chooseFlight = useCallback((item: Aircraft, forceExternal = false) => {
     const key = normalizedFlight(item.flight || '')
     const knownRoute = routeIndex[key] || null
-    const recentAircraft = { ...item, ownOp: meaningfulOperator(item.ownOp) || knownRoute?.airline?.name || item.ownOp }
+    const routeCallsign = knownRoute?.callsign_icao?.trim()
+    const recentAircraft = {
+      ...item,
+      ownOp: meaningfulOperator(item.ownOp) || knownRoute?.airline?.name || item.ownOp,
+      ...(forceExternal && routeCallsign ? {
+        adsbCallsign: routeCallsign,
+        aliases: [...new Set([...(item.aliases || []), item.flight || '', routeCallsign])].filter(Boolean),
+      } : {}),
+    }
     setRecentFlights(current => {
       const next = [
         { aircraft: recentAircraft, route: knownRoute, viewedAt: Date.now() },
@@ -345,7 +409,7 @@ export default function App() {
       persistRecentFlights(next)
       return next
     })
-    if (item.adsbCallsign || forceExternal) setExternalAircraft(forceExternal && !item.adsbCallsign ? { ...item, adsbCallsign: item.flight } : item)
+    if (recentAircraft.adsbCallsign || forceExternal) setExternalAircraft(forceExternal && !recentAircraft.adsbCallsign ? { ...recentAircraft, adsbCallsign: recentAircraft.flight } : recentAircraft)
     setSelectedHex(item.hex)
     setTab('map')
     setMapFocusRequest(current => current + 1)
@@ -374,7 +438,9 @@ export default function App() {
   const originCode = route?.origin.iata_code || route?.origin.icao_code || '—'
   const originDetail = route ? route.origin.municipality || route.origin.name || originCode : t('routeUnavailable')
   const destinationCode = route?.destination.iata_code || route?.destination.icao_code || '—'
-  const distanceKm = remainingDistance === null ? '' : `${Math.round(remainingDistance * 1.852).toLocaleString(locale)} KM`
+  const totalDistanceKm = routeDistance === null ? '' : Math.round(routeDistance.total * 1.852).toLocaleString(locale)
+  const remainingDistanceKm = routeDistance?.remaining === null || routeDistance?.remaining === undefined ? '' : Math.round(routeDistance.remaining * 1.852).toLocaleString(locale)
+  const distanceLabel = totalDistanceKm ? `${remainingDistanceKm ? `${remainingDistanceKm} / ` : ''}${totalDistanceKm} KM` : ''
   const destinationDetail = route ? route.destination.municipality || route.destination.name || destinationCode : t('routeUnavailable')
 
   const tabs = [
@@ -428,10 +494,10 @@ export default function App() {
 
       <section className="flight-banner">
         <div className="banner-accent" />
-        <div className="flight-number"><span>{t('trackedFlight')}</span><h1>{clean(selected.flight)}</h1><small className="flight-airline">{operatorName}</small><small className="flight-registration">{clean(selected.r)} · {clean(selected.t)}</small>{flightStatus && <small className={`flight-status ${flightStatusTone}`}>{flightStatus}</small>}<small className="mobile-route-summary">{originCode} → {destinationCode}{distanceKm ? ` · ${distanceKm}` : ''}</small></div>
+        <div className="flight-number"><span>{t('trackedFlight')}</span><h1>{clean(selected.flight)}</h1><small className="flight-airline">{operatorName}</small><small className="flight-registration">{clean(selected.r)} · {clean(selected.t)}</small>{flightStatus && <small className={`flight-status ${flightStatusTone}`}>{flightStatus}</small>}<small className="mobile-route-summary">{originCode} → {destinationCode}{distanceLabel ? ` · ${distanceLabel}` : ''}</small></div>
         <div className="route-visual">
           <div className="route-origin"><strong>{originCode}</strong><small>{originDetail}</small></div>
-          <div className="route-line"><i/><b className="route-plane"><PlaneGlyph/>{distanceKm && <small className="route-distance">{distanceKm}</small>}</b><i/></div>
+          <div className="route-line"><i/><b className="route-plane"><PlaneGlyph/>{distanceLabel && <small className="route-distance" title={`${t('remainingShort')} / ${t('totalShort')}`}>{distanceLabel}</small>}</b><i/></div>
           <div className="route-end"><strong>{destinationCode}</strong><small>{destinationDetail}</small></div>
         </div>
         <div className="banner-stat"><span>{t('altitude')}</span><strong>{feet(selected.alt_baro, locale, t('ground'))}</strong><small>{selected.baro_rate ? `${selected.baro_rate > 0 ? '+' : ''}${selected.baro_rate.toLocaleString(locale)} ft/min` : t('stable')}</small></div>

@@ -11,18 +11,12 @@ flight.guilleme.net {
 
 	handle_path /api/aircraft/* {
 		rewrite * /v2{path}
-		reverse_proxy https://api.adsb.lol {
-			header_up Host api.adsb.lol
-			header_up User-Agent "AeroScope/1.0"
-		}
+		reverse_proxy 127.0.0.1:8787
 	}
 
 	handle /api/opensky {
-		rewrite * /api/states/all
-		reverse_proxy https://opensky-network.org {
-			header_up Host opensky-network.org
-			header_up User-Agent "AeroScope/1.0"
-		}
+		rewrite * /opensky
+		reverse_proxy 127.0.0.1:8787
 	}
 
 	handle /api/geocode {
