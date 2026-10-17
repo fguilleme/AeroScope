@@ -13,7 +13,7 @@ import Trajectory from './components/Trajectory'
 import { useI18n } from './i18n'
 import { useFlightRoute } from './hooks/useFlightRoute'
 import { fetchOpenSkyAircraft, fetchOpenSkyGlobal } from './services/opensky'
-import { searchAirlines, searchPlaces, type AirlineSearchResult, type PlaceSearchResult } from './services/search'
+import { searchAirlines, searchFlightNumber, searchPlaces, searchRoutePlaces, splitRouteQuery, type AirlineSearchResult, type FlightNumberSearchResult, type PlaceSearchResult, type RoutePlaceSearchResult } from './services/search'
 
 type Tab = 'map' | 'trajectory' | '3d'
 type RecentFlight = { aircraft: Aircraft; route: FlightRoute | null; viewedAt: number }
@@ -55,11 +55,25 @@ function meaningfulOperator(value?: string) {
   return name && name !== 'Opérateur non identifié' && name !== 'Unknown operator' ? name : ''
 }
 
-function routeSearchText(route: FlightRoute | null) {
-  if (!route) return ''
-  return [route.airline?.name, route.airline?.iata, route.airline?.icao, route.origin.name, route.origin.municipality, route.origin.iata_code, route.origin.icao_code]
-    .filter(Boolean)
-    .join(' ')
+function matchesSearchTerms(query: string, values: Array<string | undefined>) {
+  const terms = query.split(/[\s→>\-/]+/).map(normalizedFlight).filter(term => term.length >= 2)
+  if (!terms.length) return true
+  const searchable = normalizedFlight(values.filter(Boolean).join(' '))
+  return terms.every(term => searchable.includes(term))
+}
+
+function routePairFromQuery(query: string) {
+  return splitRouteQuery(query)
+}
+
+function routeMatchesPair(route: FlightRoute, query: string) {
+  const pair = routePairFromQuery(query)
+  if (!pair) return false
+  const airportText = (airport: FlightRoute['origin']) => normalizedFlight([
+    airport.name, airport.municipality, airport.iata_code, airport.icao_code, airport.country_name,
+  ].filter(Boolean).join(' '))
+  return airportText(route.origin).includes(normalizedFlight(pair.origin))
+    && airportText(route.destination).includes(normalizedFlight(pair.destination))
 }
 
 function routeStartsFromPlace(route: FlightRoute, place: PlaceSearchResult, query: string) {
@@ -73,6 +87,42 @@ function routeStartsFromPlace(route: FlightRoute, place: PlaceSearchResult, quer
     .map(normalizedFlight)
     .filter(value => value.length >= 3)
   return candidates.some(candidate => searchableOrigin.includes(candidate))
+}
+
+async function fetchAircraftNear(region: Region, signal: AbortSignal): Promise<Aircraft[]> {
+  try {
+    const response = await fetch(`/api/aircraft/lat/${region.lat}/lon/${region.lon}/dist/${region.radius}`, { signal })
+    if (!response.ok) throw new Error(`Aircraft HTTP ${response.status}`)
+    const payload = await response.json() as { ac?: Aircraft[] }
+    return (payload.ac || []).flatMap(item => typeof item.lat === 'number' && typeof item.lon === 'number' && item.flight?.trim()
+      ? [{ ...item, flight: item.flight.trim(), desc: item.desc || aircraftName(item.t), ownOp: item.ownOp || airlineFromCallsign(item.flight), trackingState: 'live' as const }]
+      : [])
+  } catch (error) {
+    if (signal.aborted) throw error
+    return fetchOpenSkyAircraft(region, signal)
+  }
+}
+
+function routeSearchRegions(routePlaces: RoutePlaceSearchResult) {
+  const origin = routePlaces.origin.region
+  const destination = routePlaces.destination.region
+  const totalDistance = distanceNm(
+    { latitude: origin.lat, longitude: origin.lon },
+    { latitude: destination.lat, longitude: destination.lon },
+  )
+  const pointCount = Math.min(9, Math.max(2, Math.ceil(totalDistance / 450) + 1))
+  return Array.from({ length: pointCount }, (_, index) => {
+    const progress = pointCount === 1 ? 0 : index / (pointCount - 1)
+    return {
+      id: `route-${index}`,
+      name: `${origin.name}-${destination.name}`,
+      detail: '250 NM',
+      lat: origin.lat + (destination.lat - origin.lat) * progress,
+      lon: origin.lon + (destination.lon - origin.lon) * progress,
+      radius: 250,
+      zoom: 4.8,
+    } satisfies Region
+  })
 }
 
 export default function App() {
@@ -94,8 +144,10 @@ export default function App() {
   const [recentFlights, setRecentFlights] = useState<RecentFlight[]>(readRecentFlights)
   const [routeIndex, setRouteIndex] = useState<Record<string, FlightRoute>>(() => Object.fromEntries(readRecentFlights().flatMap(item => item.route && item.aircraft.flight ? [[normalizedFlight(item.aircraft.flight), item.route]] : [])))
   const [remoteAircraft, setRemoteAircraft] = useState<Aircraft[]>([])
+  const [flightNumberResult, setFlightNumberResult] = useState<FlightNumberSearchResult | null>(null)
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([])
   const [airlineResults, setAirlineResults] = useState<AirlineSearchResult[]>([])
+  const [routePlaceResult, setRoutePlaceResult] = useState<RoutePlaceSearchResult | null>(null)
   const [remoteSearching, setRemoteSearching] = useState(false)
   const routeRequests = useRef(new Set<string>())
   const searchFieldRef = useRef<HTMLDivElement>(null)
@@ -163,25 +215,42 @@ export default function App() {
     const searchText = query.trim()
     if (!showResults || searchText.length < 3) {
       setRemoteAircraft([])
+      setFlightNumberResult(null)
       setPlaceResults([])
       setAirlineResults([])
+      setRoutePlaceResult(null)
       setRemoteSearching(false)
       return
     }
+    setFlightNumberResult(null)
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
       setRemoteSearching(true)
+      void searchFlightNumber(searchText, controller.signal).then(directFlight => {
+        if (controller.signal.aborted) return
+        setFlightNumberResult(directFlight)
+        if (!directFlight) return
+        const keys = [directFlight.aircraft.flight, ...(directFlight.aircraft.aliases || [])]
+          .map(value => normalizedFlight(value || ''))
+          .filter(Boolean)
+        setRouteIndex(current => ({ ...current, ...Object.fromEntries(keys.map(key => [key, directFlight.route])) }))
+      }).catch(error => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setFlightNumberResult(null)
+      })
       void Promise.allSettled([
         searchPlaces(searchText, language, controller.signal),
         searchAirlines(searchText, language, controller.signal),
-      ]).then(async ([placesResult, airlinesResult]) => {
+        searchRoutePlaces(searchText, language, controller.signal),
+      ]).then(async ([placesResult, airlinesResult, routePlacesResult]) => {
         if (controller.signal.aborted) return
         const places = placesResult.status === 'fulfilled' ? placesResult.value : []
         const airlines = airlinesResult.status === 'fulfilled' ? airlinesResult.value : []
+        const routePlaces = routePlacesResult.status === 'fulfilled' ? routePlacesResult.value : null
+        const activeRoutePlaces = !places[0] && !airlines[0] ? routePlaces : null
         setPlaceResults(places)
         setAirlineResults(airlines)
-        const placePromise = places[0] && !airlines[0] ? (async () => {
-          const candidates = (await fetchOpenSkyAircraft(places[0].region, controller.signal)).slice(0, 48)
+        setRoutePlaceResult(activeRoutePlaces)
+        const resolveMatchingRoutes = async (candidates: Aircraft[], matches: (route: FlightRoute) => boolean) => {
           const matched: Aircraft[] = []
           const discoveredRoutes: Record<string, FlightRoute> = {}
           for (let index = 0; index < candidates.length && !controller.signal.aborted; index += 6) {
@@ -203,18 +272,45 @@ export default function App() {
                   return
                 }
               }
-              if (candidateRoute && routeStartsFromPlace(candidateRoute, places[0], searchText)) matched.push(item)
+              if (candidateRoute && matches(candidateRoute)) matched.push(item)
             }))
           }
           if (Object.keys(discoveredRoutes).length) setRouteIndex(current => ({ ...current, ...discoveredRoutes }))
           return matched
+        }
+        const placePromise = places[0] && !airlines[0] ? (async () => {
+          const candidates = (await fetchOpenSkyAircraft(places[0].region, controller.signal)).slice(0, 48)
+          return resolveMatchingRoutes(candidates, candidateRoute => routeStartsFromPlace(candidateRoute, places[0], searchText))
+        })().catch(() => []) : Promise.resolve([])
+        const routePairPromise = activeRoutePlaces ? (async () => {
+          const regionsAlongRoute = routeSearchRegions(activeRoutePlaces)
+          const responses: Array<PromiseSettledResult<Aircraft[]>> = []
+          for (const searchRegion of regionsAlongRoute) {
+            if (controller.signal.aborted) break
+            responses.push(await Promise.resolve(fetchAircraftNear(searchRegion, controller.signal))
+              .then(value => ({ status: 'fulfilled', value }) satisfies PromiseFulfilledResult<Aircraft[]>)
+              .catch(reason => ({ status: 'rejected', reason }) satisfies PromiseRejectedResult))
+            if (searchRegion !== regionsAlongRoute.at(-1)) await new Promise(resolve => window.setTimeout(resolve, 650))
+          }
+          const perRegionLimit = Math.max(8, Math.floor(72 / Math.max(regionsAlongRoute.length, 1)))
+          const candidates: Aircraft[] = []
+          responses.forEach((response, index) => {
+            if (response.status !== 'fulfilled') return
+            const searchRegion = regionsAlongRoute[index]
+            candidates.push(...response.value
+              .sort((left, right) => distanceNm({ latitude: left.lat!, longitude: left.lon! }, { latitude: searchRegion.lat, longitude: searchRegion.lon })
+                - distanceNm({ latitude: right.lat!, longitude: right.lon! }, { latitude: searchRegion.lat, longitude: searchRegion.lon }))
+              .slice(0, perRegionLimit))
+          })
+          const uniqueCandidates = candidates.filter((item, index, list) => list.findIndex(candidate => candidate.hex === item.hex) === index).slice(0, 72)
+          return resolveMatchingRoutes(uniqueCandidates, candidateRoute => routeMatchesPair(candidateRoute, searchText))
         })().catch(() => []) : Promise.resolve([])
         const airlinePromise = airlines[0] ? fetchOpenSkyGlobal(controller.signal)
           .then(items => items.filter(item => item.flight?.startsWith(airlines[0].icao)).map(item => ({ ...item, ownOp: airlines[0].name })))
           .catch(() => []) : Promise.resolve([])
-        const [placeAircraft, airlineAircraft] = await Promise.all([placePromise, airlinePromise])
+        const [placeAircraft, routePairAircraft, airlineAircraft] = await Promise.all([placePromise, routePairPromise, airlinePromise])
         if (controller.signal.aborted) return
-        setRemoteAircraft([...airlineAircraft, ...placeAircraft].filter((item, index, list) => list.findIndex(candidate => candidate.hex === item.hex) === index))
+        setRemoteAircraft([...airlineAircraft, ...placeAircraft, ...routePairAircraft].filter((item, index, list) => list.findIndex(candidate => candidate.hex === item.hex) === index))
       }).finally(() => {
         if (!controller.signal.aborted) setRemoteSearching(false)
       })
@@ -229,11 +325,12 @@ export default function App() {
     const needle = normalizedFlight(query)
     return recentFlights.filter(item => {
       if (!needle) return true
+      if (flightNumberResult && normalizedFlight(item.aircraft.flight || '') === normalizedFlight(flightNumberResult.aircraft.flight || '')) return false
       const indexedRoute = item.route || routeIndex[normalizedFlight(item.aircraft.flight || '')] || null
-      return [item.aircraft.flight, item.aircraft.r, item.aircraft.t, item.aircraft.ownOp, routeSearchText(indexedRoute)]
-        .some(value => normalizedFlight(value || '').includes(needle))
+      if (indexedRoute && routeMatchesPair(indexedRoute, query)) return true
+      return matchesSearchTerms(query, [item.aircraft.flight, item.aircraft.r, item.aircraft.t, item.aircraft.ownOp, indexedRoute?.airline?.name, indexedRoute?.airline?.iata, indexedRoute?.airline?.icao])
     }).map(item => ({ aircraft: item.aircraft, route: item.route || routeIndex[normalizedFlight(item.aircraft.flight || '')] || null, recent: true }))
-  }, [query, recentFlights, routeIndex])
+  }, [flightNumberResult, query, recentFlights, routeIndex])
   const results = useMemo<SearchResult[]>(() => {
     const needle = normalizedFlight(query)
     const recentKeys = new Set(recentResults.map(item => normalizedFlight(item.aircraft.flight || '')))
@@ -242,28 +339,33 @@ export default function App() {
     const matches = (item: Aircraft) => {
       if (!needle) return true
       const indexedRoute = routeIndex[normalizedFlight(item.flight || '')] || null
+      if (indexedRoute && routeMatchesPair(indexedRoute, query)) return true
       if (searchedAirline) {
         const airlineIcao = normalizedFlight(searchedAirline.icao)
         const routeAirlineIcao = normalizedFlight(indexedRoute?.airline?.icao || '')
         return normalizedFlight(item.flight || '').startsWith(airlineIcao) || routeAirlineIcao === airlineIcao
       }
       if (searchedPlace) return Boolean(indexedRoute && routeStartsFromPlace(indexedRoute, searchedPlace, query))
-      return [item.flight, item.r, item.t, item.ownOp, routeSearchText(indexedRoute)]
-        .some(value => normalizedFlight(value || '').includes(needle))
+      return matchesSearchTerms(query, [item.flight, item.r, item.t, item.ownOp, indexedRoute?.airline?.name, indexedRoute?.airline?.iata, indexedRoute?.airline?.icao])
     }
+    const direct = flightNumberResult ? [flightNumberResult.aircraft] : []
     const local = displayAircraft.filter(matches)
     const scheduled = watchedFlights.filter(item => item.aliases?.some(alias => normalizedFlight(alias) === needle))
-    return [...local, ...scheduled, ...remoteAircraft]
+    return [...direct, ...local, ...scheduled, ...remoteAircraft]
       .filter((item, index, list) => list.findIndex(candidate => candidate.hex === item.hex) === index)
       .filter(item => !recentKeys.has(normalizedFlight(item.flight || '')))
       .slice(0, needle ? 12 : 8)
-      .map(item => ({ aircraft: item, route: routeIndex[normalizedFlight(item.flight || '')] || null, remote: remoteAircraft.some(remote => remote.hex === item.hex) }))
-  }, [airlineResults, displayAircraft, placeResults, query, recentResults, remoteAircraft, routeIndex])
+      .map(item => ({
+        aircraft: item,
+        route: item.hex === flightNumberResult?.aircraft.hex ? flightNumberResult.route : routeIndex[normalizedFlight(item.flight || '')] || null,
+        remote: item.hex === flightNumberResult?.aircraft.hex || remoteAircraft.some(remote => remote.hex === item.hex),
+      }))
+  }, [airlineResults, displayAircraft, flightNumberResult, placeResults, query, recentResults, remoteAircraft, routeIndex])
 
   useEffect(() => {
     if (!showResults) return
     let cancelled = false
-    const candidates = [...displayAircraft, ...remoteAircraft].filter((item, index, list) => item.flight && typeof item.lat === 'number' && typeof item.lon === 'number' && list.findIndex(candidate => candidate.hex === item.hex) === index).slice(0, 24)
+    const candidates = [...displayAircraft, ...remoteAircraft].filter((item, index, list) => item.flight && typeof item.lat === 'number' && typeof item.lon === 'number' && list.findIndex(candidate => candidate.hex === item.hex) === index).slice(0, 48)
     const enrich = async () => {
       for (let index = 0; index < candidates.length && !cancelled; index += 4) {
         await Promise.all(candidates.slice(index, index + 4).map(async item => {
@@ -459,8 +561,15 @@ export default function App() {
     const destination = destinationCity ? `${destinationCity}${destinationCode ? ` (${destinationCode})` : ''}` : ''
     const routeSummary = origin && destination ? `${origin} → ${destination}` : origin || destination
     const description = [company, routeSummary, item.desc || item.t].filter(Boolean).join(' · ')
-    return <button key={`${recent ? 'recent' : remote ? 'remote' : 'result'}-${item.hex}`} onClick={() => chooseFlight(item, Boolean(recent || remote))}>{recent ? <Clock3 className="recent-icon"/> : <PlaneGlyph/>}<span><strong>{clean(item.flight)}</strong><small>{description}</small></span><span className="result-alt">{item.trackingState === 'scheduled' ? t('scheduled') : feet(item.alt_baro, locale, t('ground'))}</span></button>
+    const resultStatus = item.trackingState === 'scheduled'
+      ? item.adsbCallsign && !item.scheduledDeparture ? t('awaitingSignal') : t('scheduled')
+      : feet(item.alt_baro, locale, t('ground'))
+    return <button key={`${recent ? 'recent' : remote ? 'remote' : 'result'}-${item.hex}`} onClick={() => chooseFlight(item, Boolean(recent || remote))}>{recent ? <Clock3 className="recent-icon"/> : <PlaneGlyph/>}<span><strong>{clean(item.flight)}</strong><small>{description}</small></span><span className="result-alt">{resultStatus}</span></button>
   }
+  const searchedRoutePair = !flightNumberResult && !airlineResults.length && routePlaceResult ? routePairFromQuery(query) : null
+  const resultCaption = searchedRoutePair
+    ? t('routeSearch', { origin: searchedRoutePair.origin.toUpperCase(), destination: searchedRoutePair.destination.toUpperCase() })
+    : query ? `${results.length + recentResults.length} ${(results.length + recentResults.length) > 1 ? t('flights') : t('flight')} ${(results.length + recentResults.length) > 1 ? t('foundPlural') : t('found')}` : t('nearbyFlights')
 
   return <div className="app-shell">
     <header className="topbar">
@@ -479,11 +588,11 @@ export default function App() {
           <input value={query} onFocus={() => setShowResults(true)} onChange={event => { setQuery(event.target.value); setShowResults(true) }} placeholder={t('searchPlaceholder')} aria-label={t('searchFlight')} />
           <kbd>⌘ K</kbd>
           {showResults && <div className="search-results">
-            {recentResults.length > 0 && <><div className="results-caption recent-caption">{t('recentFlights')}</div>{recentResults.map(renderSearchResult)}</>}
+            {recentResults.length > 0 && <><div className="results-caption recent-caption">{searchedRoutePair ? resultCaption : t('recentFlights')}</div>{recentResults.map(renderSearchResult)}</>}
             {airlineResults.length > 0 && <><div className="results-caption remote-caption">{t('airlineSearch')}</div>{airlineResults.slice(0, 1).map(airline => <div className="search-scope-card" key={airline.id}><Plane/><span><strong>{airline.name}</strong><small>{airline.description || `${t('icaoCode')} ${airline.icao}`}</small></span><span className="result-alt">{remoteSearching ? t('loading') : `${remoteAircraft.length} ${remoteAircraft.length === 1 ? t('flight') : t('flights')}`}</span></div>)}</>}
             {!airlineResults.length && placeResults.length > 0 && <><div className="results-caption remote-caption">{t('areaSearch')}</div>{placeResults.slice(0, 1).map(place => <div className="search-scope-card place-scope-card" key={place.id}><Map/><span><strong>{place.name}</strong><small>{place.detail}</small></span></div>)}</>}
-            {results.length > 0 && <><div className="results-caption">{query ? `${results.length + recentResults.length} ${(results.length + recentResults.length) > 1 ? t('flights') : t('flight')} ${(results.length + recentResults.length) > 1 ? t('foundPlural') : t('found')}` : t('nearbyFlights')}</div>{results.map(renderSearchResult)}</>}
-            {!results.length && !recentResults.length && !remoteSearching && !placeResults.length && !airlineResults.length && <p>{t('noAircraft')}</p>}
+            {results.length > 0 && <><div className="results-caption">{resultCaption}</div>{results.map(renderSearchResult)}</>}
+            {!results.length && !recentResults.length && !remoteSearching && !placeResults.length && !airlineResults.length && <p>{searchedRoutePair ? t('noRouteFlights') : t('noAircraft')}</p>}
             {!results.length && !remoteSearching && (placeResults.length > 0 || airlineResults.length > 0) && <p>{t('noLiveScopeFlights')}</p>}
           </div>}
         </div>

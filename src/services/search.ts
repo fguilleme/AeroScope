@@ -1,4 +1,4 @@
-import type { Region } from '../types'
+import type { Aircraft, FlightRoute, Region } from '../types'
 
 export type PlaceSearchResult = {
   id: string
@@ -13,6 +13,16 @@ export type AirlineSearchResult = {
   name: string
   description: string
   icao: string
+}
+
+export type FlightNumberSearchResult = {
+  aircraft: Aircraft
+  route: FlightRoute
+}
+
+export type RoutePlaceSearchResult = {
+  origin: PlaceSearchResult
+  destination: PlaceSearchResult
 }
 
 type NominatimPlace = {
@@ -34,6 +44,71 @@ type WikidataEntity = {
   claims?: Record<string, WikidataClaim[]>
 }
 
+function flightNumberFromQuery(query: string) {
+  const matches = [...query.toUpperCase().matchAll(/(?:^|\s)([A-Z0-9]{2,3})\s*[- ]?\s*0*(\d{1,4}[A-Z]?)(?=\s|$)/g)]
+  const match = matches.at(-1)
+  return match ? `${match[1]}${match[2]}` : ''
+}
+
+function callsignVariants(value?: string) {
+  const callsign = value?.trim().toUpperCase()
+  if (!callsign) return []
+  const match = callsign.match(/^([A-Z]{2,3})(\d{1,4}[A-Z]?)$/)
+  if (!match) return [callsign]
+  const numeric = match[2].match(/^(\d+)([A-Z]?)$/)
+  if (!numeric) return [callsign]
+  return [...new Set([
+    callsign,
+    `${match[1]}${numeric[1].padStart(3, '0')}${numeric[2]}`,
+  ])]
+}
+
+export async function searchFlightNumber(query: string, signal?: AbortSignal): Promise<FlightNumberSearchResult | null> {
+  const requestedCallsign = flightNumberFromQuery(query)
+  if (!requestedCallsign) return null
+
+  const routeResponse = await fetch(`/api/route/${encodeURIComponent(requestedCallsign)}`, { signal })
+  if (!routeResponse.ok) return null
+  const payload = await routeResponse.json() as { response?: { flightroute?: FlightRoute } }
+  const route = payload.response?.flightroute
+  if (!route?.origin || !route.destination) return null
+
+  const displayCallsign = route.callsign_iata?.trim() || route.callsign.trim() || requestedCallsign
+  const adsbCallsign = route.callsign_icao?.trim() || route.callsign.trim() || requestedCallsign
+  const aliases = [...new Set([
+    requestedCallsign,
+    ...callsignVariants(route.callsign_iata),
+    ...callsignVariants(route.callsign_icao),
+    ...callsignVariants(route.callsign),
+  ].filter(Boolean))]
+  let liveAircraft: Aircraft | undefined
+
+  for (const callsign of callsignVariants(adsbCallsign)) {
+    try {
+      const response = await fetch(`/api/aircraft/callsign/${encodeURIComponent(callsign)}`, { signal })
+      if (!response.ok) continue
+      const aircraft = (await response.json() as { ac?: Aircraft[] }).ac
+      liveAircraft = aircraft?.find(item => typeof item.lat === 'number' && typeof item.lon === 'number')
+      if (liveAircraft) break
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') throw error
+    }
+  }
+
+  return {
+    route,
+    aircraft: {
+      ...liveAircraft,
+      hex: liveAircraft?.hex || `scheduled-${displayCallsign.toLowerCase()}`,
+      flight: displayCallsign,
+      ownOp: route.airline?.name || liveAircraft?.ownOp,
+      trackingState: liveAircraft ? 'live' : 'scheduled',
+      adsbCallsign,
+      aliases,
+    },
+  }
+}
+
 export async function searchPlaces(query: string, language: string, signal?: AbortSignal): Promise<PlaceSearchResult[]> {
   const params = new URLSearchParams({ q: query, format: 'jsonv2', limit: '3', addressdetails: '1', 'accept-language': language })
   const response = await fetch(`/api/geocode?${params}`, { signal })
@@ -43,7 +118,10 @@ export async function searchPlaces(query: string, language: string, signal?: Abo
     if (place.category === 'aeroway') return 0
     return ({ city: 1, town: 2, municipality: 2, village: 3, state: 4, country: 5 } as Record<string, number>)[place.addresstype || ''] ?? 6
   }
-  return [...places].sort((left, right) => placeRank(left) - placeRank(right)).map(place => {
+  const searchableKinds = new Set(['aerodrome', 'airport', 'city', 'town', 'municipality', 'village', 'state', 'country', 'county', 'administrative'])
+  return [...places]
+    .filter(place => place.category === 'aeroway' || searchableKinds.has(place.addresstype || ''))
+    .sort((left, right) => placeRank(left) - placeRank(right)).map(place => {
     const lat = Number(place.lat)
     const lon = Number(place.lon)
     const bounds = place.boundingbox?.map(Number)
@@ -59,6 +137,24 @@ export async function searchPlaces(query: string, language: string, signal?: Abo
       region: { id: `search-${place.place_id}`, name, detail: `${radius} NM`, lat, lon, radius, zoom: radius > 180 ? 4.8 : radius > 100 ? 5.4 : 6.2 },
     }
   }).filter(place => Number.isFinite(place.region.lat) && Number.isFinite(place.region.lon))
+}
+
+export function splitRouteQuery(query: string) {
+  const explicit = query.split(/\s*(?:→|->|>|\/|\b(?:to|vers)\b)\s*/i).map(value => value.trim()).filter(Boolean)
+  if (explicit.length === 2) return { origin: explicit[0], destination: explicit[1] }
+  const words = query.trim().split(/\s+/).filter(Boolean)
+  if (words.length < 2) return null
+  return { origin: words.slice(0, -1).join(' '), destination: words.at(-1)! }
+}
+
+export async function searchRoutePlaces(query: string, language: string, signal?: AbortSignal): Promise<RoutePlaceSearchResult | null> {
+  const pair = splitRouteQuery(query)
+  if (!pair) return null
+  const [origins, destinations] = await Promise.all([
+    searchPlaces(pair.origin, language, signal),
+    searchPlaces(pair.destination, language, signal),
+  ])
+  return origins[0] && destinations[0] ? { origin: origins[0], destination: destinations[0] } : null
 }
 
 export async function searchAirlines(query: string, language: string, signal?: AbortSignal): Promise<AirlineSearchResult[]> {
