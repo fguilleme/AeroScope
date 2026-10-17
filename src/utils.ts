@@ -52,6 +52,13 @@ export function routeAlignedTrail(origin: Airport, destination: Airport, aircraf
     }
   })
 
+  // A flight can legitimately deviate from the great-circle route because of
+  // winds, airways or ATC. In that case, extending the route-aligned trail
+  // leaves the aircraft marker floating away from its own trail. Estimate the
+  // recent track from the live heading instead, which always terminates at the
+  // reported ADS-B position.
+  if (closestDistance > 30) return estimatedTrail(aircraft)
+
   const recentDistanceNm = Math.max(aircraft.gs || 250, 80) * (24 / 60)
   let startIndex = closestIndex
   let coveredDistance = 0
@@ -66,7 +73,8 @@ export function routeAlignedTrail(origin: Airport, destination: Airport, aircraf
   }
 
   const trail = routePoints.slice(startIndex, closestIndex + 1)
-  return trail.length > 1 ? trail : [routePoints[closestIndex], routePoints[closestIndex]]
+  const currentPosition = [aircraft.lon, aircraft.lat] as [number, number]
+  return trail.length > 1 ? [...trail, currentPosition] : [routePoints[closestIndex], currentPosition]
 }
 
 export function distanceNm(from: Pick<Airport, 'latitude' | 'longitude'>, to: Pick<Airport, 'latitude' | 'longitude'>) {
